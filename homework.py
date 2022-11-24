@@ -1,14 +1,16 @@
+import os
 import time
 
 import requests
 import telegram
+from telegram import Bot
 from dotenv import load_dotenv
 
 load_dotenv()
 
-PRACTICUM_TOKEN = 'y0_AgAAAAA2G4HYAAYckQAAAADUwqxWEc4lDg6oRiifGYgOVKurtXg9Znw'
-TELEGRAM_TOKEN = '5282540832:AAHBQMSq7Ct4bAUzJZUIPwTMrJXx-wUCEWU'
-TELEGRAM_CHAT_ID = 932555256
+PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
@@ -26,13 +28,11 @@ def check_tokens():
 
 
 def send_message(bot, message):
-    pass
-
+    bot.send_message(TELEGRAM_CHAT_ID, message)
 
 def get_api_answer(timestamp):
     response = requests.get(ENDPOINT, headers=HEADERS, params={'from_date': timestamp})
     answer = response.json()['homeworks'][0]
-    # print(answer)
     return answer
 
 
@@ -49,10 +49,12 @@ def parse_status(homework):
 def main():
     """Основная логика работы бота."""
 
-    bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    bot = Bot(token=TELEGRAM_TOKEN)
     timestamp = 0
-    x = parse_status(get_api_answer(timestamp))
-    print(x)
+    message = parse_status(get_api_answer(timestamp))
+    print(message)
+    send_message(bot, message)
+
     # while True:
     #     try:
     #
