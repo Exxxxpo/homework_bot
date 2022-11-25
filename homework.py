@@ -33,7 +33,7 @@ def check_tokens():
     if not PRACTICUM_TOKEN and not TELEGRAM_TOKEN:
         logging.critical('Проверьте переменные окружения')
         sys.exit()
-
+    return True
 
 def send_message(bot, message):
     """Отправка сообщения пользователю"""
@@ -55,6 +55,13 @@ def get_api_answer(timestamp):
     except requests.exceptions.RequestException:
         logging.error('Сбой при запросе к эндпоинту')
         raise Exception
+    except requests.exceptions.ConnectionError:
+        raise Exception
+    except requests.exceptions.HTTPError:
+        raise Exception
+    except requests.exceptions.Timeout:
+        raise Exception
+
         # SystemExit('Something wrong')
     # except requests.exceptions.ConnectionError as errc:
     #     print ("Error Connecting:", errc)
@@ -72,6 +79,7 @@ def check_response(response):
     if type(response['homeworks']) != list:
         logging.error('response["homeworks"] возвращает не список')
         raise TypeError
+    return True
     # if not response.get('homeworks'):
     #     logging.error('response["homeworks"] не имеет значения')
     #     raise Exception
@@ -90,38 +98,38 @@ def parse_status(homework):
         raise Exception
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
-
 def main():
     """Основная логика работы бота."""
-    check_tokens()
-    bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time())  # int(time.time())
-    last_date = 0
-    while True:
-        try:
-            response = get_api_answer(timestamp)
-            print(response)
-            check_response(response)
-            if len(response.get('homeworks')) > 0:
-                if response.get('homeworks')[0].get('date_updated') != last_date:
-                    message = parse_status(response.get('homeworks')[0])
-                    send_message(bot, message)
-                    print('ok')
-                    last_date = response.get('homeworks')[0].get('date_updated')
-                    time.sleep(RETRY_PERIOD)  # set RETRY_PERIOD here
+    if check_tokens():
+        bot = telegram.Bot(token=TELEGRAM_TOKEN)
+        timestamp = int(time.time()) # int(time.time())
+        last_date = 0
+        while True:
+            try:
+                response = get_api_answer(timestamp)
+                check_response(response)
+                if len(response.get('homeworks')) > 0:
+                    if response.get('homeworks')[0].get('date_updated') != last_date:
+                        message = parse_status(response.get('homeworks')[0])
+                        send_message(bot, message)
+                        print('ok')
+                        last_date = response.get('homeworks')[0].get('date_updated')
+                        time.sleep(5)  # set RETRY_PERIOD here
+                    else:
+                        time.sleep(5)
+                        logging.info('Нет обновлений')
+                        print('ждемс')
+
                 else:
-                    time.sleep(RETRY_PERIOD)
-                    print('ждемс')
+                    print('Вы не отправили работу')
+                    logging.info('Работа не отправлена')
+                    time.sleep(5)
 
-            else:
-                print('Вы не отправили работу')
-                time.sleep(RETRY_PERIOD)
-            timestamp += RETRY_PERIOD
-
-        except Exception as error:
-            message = f'Сбой в работе программы: {error}'
-            logging.error(error)
-
+            except Exception as error:
+                message = f'Сбой в работе программы: {error}'
+                logging.error(error)
+                send_message(bot, message)
+                sys.exit()
 
 if __name__ == '__main__':
     main()
