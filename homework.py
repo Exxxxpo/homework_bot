@@ -102,7 +102,7 @@ def main():
     """Основная логика работы бота."""
     if check_tokens():
         bot = telegram.Bot(token=TELEGRAM_TOKEN)
-        timestamp = int(time.time()) # int(time.time())
+        timestamp = 0 # int(time.time())
         last_date = 0
         while True:
             try:
@@ -114,22 +114,22 @@ def main():
                         send_message(bot, message)
                         print('ok')
                         last_date = response.get('homeworks')[0].get('date_updated')
-                        time.sleep(5)  # set RETRY_PERIOD here
+                        time.sleep(RETRY_PERIOD)  # set RETRY_PERIOD here
                     else:
-                        time.sleep(5)
+                        time.sleep(RETRY_PERIOD)
                         logging.info('Нет обновлений')
                         print('ждемс')
 
                 else:
                     print('Вы не отправили работу')
                     logging.info('Работа не отправлена')
-                    time.sleep(5)
+                    time.sleep(RETRY_PERIOD)
 
             except Exception as error:
                 message = f'Сбой в работе программы: {error}'
                 logging.error(error)
                 send_message(bot, message)
-                sys.exit()
+                time.sleep(RETRY_PERIOD)
 
 if __name__ == '__main__':
     main()
