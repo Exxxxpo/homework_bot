@@ -1,10 +1,10 @@
 import os
+import sys
 import time
 
 import requests
-import telegram
-from telegram import Bot
 from dotenv import load_dotenv
+from telegram import Bot
 
 load_dotenv()
 
@@ -24,43 +24,73 @@ HOMEWORK_VERDICTS = {
 
 
 def check_tokens():
-    pass
+    """Проверка доступности переменных окружения"""
+    if not PRACTICUM_TOKEN and not TELEGRAM_TOKEN:
+        sys.exit()
 
 
 def send_message(bot, message):
+    """Отправка сообщения пользователю"""
     bot.send_message(TELEGRAM_CHAT_ID, message)
 
+
 def get_api_answer(timestamp):
-    response = requests.get(ENDPOINT, headers=HEADERS, params={'from_date': timestamp})
-    answer = response.json()['homeworks'][0]
-    return answer
+    """Делаем запрос к эндпоинту API-сервиса"""
+    try:
+        response = requests.get(url=ENDPOINT, headers=HEADERS,
+                                params={'from_date': timestamp})
+        if response.status_code != 200:
+            raise Exception
+    except requests.exceptions.RequestException:
+        SystemExit('Something wrong')
+    # except requests.exceptions.ConnectionError as errc:
+    #     print ("Error Connecting:", errc)
+    print(response.json())
+    return response.json()
 
 
 def check_response(response):
-    pass
-
-
+    """Проверка API на соответствие документации"""
+    if type(response) != dict:
+        raise TypeError
+    if 'homeworks' not in response:
+        raise KeyError
+    if type(response['homeworks']) != list:
+        raise TypeError
 def parse_status(homework):
-    homework_name = homework.get('homework_name')
-    verdict = HOMEWORK_VERDICTS[homework['status']]
+    """Извлекает из информации о конкретной домашней работе статус работы"""
+    try:
+        homework_name = homework.get('homework_name')
+        if not homework_name:
+            raise KeyError
+        verdict = HOMEWORK_VERDICTS[homework['status']]
+        # if not homework.get('status'):
+        #     raise KeyError
+    except KeyError:
+        raise Exception
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
 def main():
     """Основная логика работы бота."""
-
+    check_tokens()
     bot = Bot(token=TELEGRAM_TOKEN)
-    timestamp = 0
-    message = parse_status(get_api_answer(timestamp))
-    print(message)
-    send_message(bot, message)
+    timestamp = int(time.time())  # int(time.time())
+    cache_response = ''
+    while True:
+        try:
+            response = get_api_answer(timestamp)
+            check_response(response)
+            print(response)
+            if response != cache_response:
+                message = parse_status(response.get('homeworks')[0])
+                print(message)  # delete
+                send_message(bot, message)
+                cache_response = response
+            time.sleep(5)  # set RETRY_PERIOD here
 
-    # while True:
-    #     try:
-    #
-    #
-    #     except Exception as error:
-    #         message = f'Сбой в работе программы: {error}'
+        except Exception as error:
+            message = f'Сбой в работе программы: {error}'
 
 
 if __name__ == '__main__':
