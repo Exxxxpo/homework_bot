@@ -55,12 +55,11 @@ def get_api_answer(timestamp):
     except requests.exceptions.RequestException:
         logging.error('Сбой при запросе к эндпоинту')
         raise Exception
-        SystemExit('Something wrong')
+        # SystemExit('Something wrong')
     # except requests.exceptions.ConnectionError as errc:
     #     print ("Error Connecting:", errc)
     # print(response.json())
     return response.json()
-
 
 def check_response(response):
     """Проверка API на соответствие документации"""
@@ -73,9 +72,9 @@ def check_response(response):
     if type(response['homeworks']) != list:
         logging.error('response["homeworks"] возвращает не список')
         raise TypeError
-    if not response.get('homeworks'):
-        logging.error('response["homeworks"] не имеет значения')
-        raise Exception
+    # if not response.get('homeworks'):
+    #     logging.error('response["homeworks"] не имеет значения')
+    #     raise Exception
 def parse_status(homework):
     """Извлекает из информации о конкретной домашней работе статус работы"""
     try:
@@ -96,23 +95,29 @@ def main():
     """Основная логика работы бота."""
     check_tokens()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time())  # int(time.time())
-    cache_response = ''
+    timestamp = 0  # int(time.time())
+    last_date = 0
     while True:
         try:
             response = get_api_answer(timestamp)
-            check_response(response)
             print(response)
-            if response != cache_response:
-                message = parse_status(response.get('homeworks')[0])
-                print(message)  # delete
-                send_message(bot, message)
-                cache_response = response
-            time.sleep(10)  # set RETRY_PERIOD here
+            check_response(response)
+            if len(response.get('homeworks')) > 0:
+                if response.get('homeworks')[0].get('date_updated') != last_date:
+                    message = parse_status(response.get('homeworks')[0])
+                    send_message(bot, message)
+                    print('ok')
+                    last_date = response.get('homeworks')[0].get('date_updated')
+                    time.sleep(10)  # set RETRY_PERIOD here
+                else:
+                    time.sleep(10)
+                    print('ждемс')
+
+            else:
+                print('Вы не отправили работу')
 
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
-            print(message)
 
 
 if __name__ == '__main__':
