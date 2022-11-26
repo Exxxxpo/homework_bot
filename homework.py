@@ -1,12 +1,13 @@
+import logging
 import os
 import sys
 import time
-import logging
+from http import HTTPStatus
+from logging.handlers import RotatingFileHandler
 
 import requests
-from dotenv import load_dotenv
 import telegram
-from logging.handlers import RotatingFileHandler
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -23,38 +24,32 @@ HOMEWORK_VERDICTS = {
     'reviewing': 'Работа взята на проверку ревьюером.',
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
-# logging.basicConfig(
-#     level=logging.DEBUG,
-#     filename='main.log',
-#     format='%(asctime)s, %(levelname)s, %(message)s, %(name)s',
-# )
+
 formatter = logging.Formatter(
     '%(asctime)s - %(levelname)s - %(message)s - %(name)s '
 )
 handler = RotatingFileHandler('homework.log', maxBytes=50000000, backupCount=5)
 handler.setFormatter(formatter)
-# handler.setLevel(logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logger.addHandler(handler)
-# logging.addHandler(handler)
+
 
 def check_tokens():
     """Проверка доступности переменных окружения"""
-    if not PRACTICUM_TOKEN and not TELEGRAM_TOKEN:
+    if not PRACTICUM_TOKEN or not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         logger.critical('Проверьте переменные окружения')
         sys.exit()
-    # return True
 
 
 def send_message(bot, message):
     """Отправка сообщения пользователю"""
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
-        logger.debug('Сообщение отправлено ботом!')
+        logger.debug('Сообщение успешно отправлено!')
     except Exception as error:
-        logger.error(error, 'Сообщение не отправилось ботом')
+        logger.error(error, 'Сообщение не удалось отправить!')
 
 
 def get_api_answer(timestamp):
@@ -62,23 +57,11 @@ def get_api_answer(timestamp):
     try:
         response = requests.get(url=ENDPOINT, headers=HEADERS,
                                 params={'from_date': timestamp})
-        if response.status_code != 200:
-            logger.error('Status code error')
+        if response.status_code != HTTPStatus.OK:
+            logger.error('Ошибка подключения')
             raise Exception
-    except requests.exceptions.RequestException:
-        logger.error('Сбой при запросе к эндпоинту')
-        raise Exception
-    except requests.exceptions.ConnectionError:
-        raise Exception
-    except requests.exceptions.HTTPError:
-        raise Exception
-    except requests.exceptions.Timeout:
-        raise Exception
-
-        # SystemExit('Something wrong')
-    # except requests.exceptions.ConnectionError as errc:
-    #     print ("Error Connecting:", errc)
-    # print(response.json())
+    except requests.RequestException as error:
+        logger.error(error, 'Сбой при запросе к эндпоинту')
     return response.json()
 
 
@@ -93,25 +76,16 @@ def check_response(response):
     if type(response['homeworks']) != list:
         logger.error('response["homeworks"] возвращает не список')
         raise TypeError
-    # return True
-    # if not response.get('homeworks'):
-    #     logger.error('response["homeworks"] не имеет значения')
-    #     raise Exception
 
 
 def parse_status(homework):
     """Извлекает из информации о конкретной домашней работе статус работы"""
     try:
-        homework_name = homework.get('homework_name')
-        if not homework_name:
-            logger.error('Нет ключа homework_name')
-            raise KeyError
+        homework_name = homework['homework_name']
         verdict = HOMEWORK_VERDICTS[homework['status']]
-        # if not homework.get('status'):
-        #     raise KeyError
+        logger.info('Информация успешно обработана')
     except KeyError:
-        logger.error('Wrong key')
-        raise Exception
+        logger.error('Неожиданный статус домашней работы')
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
@@ -130,23 +104,18 @@ def main():
                         'date_updated') != last_date:
                     message = parse_status(response.get('homeworks')[0])
                     send_message(bot, message)
-                    print('ok')
                     last_date = response.get('homeworks')[0].get(
                         'date_updated')
-                    time.sleep(RETRY_PERIOD)  # set RETRY_PERIOD here
-                else:
                     time.sleep(RETRY_PERIOD)
-                    logger.info('Нет обновлений')
-                    print('ждемс')
-
+                else:
+                    logger.debug('Нет обновлений')
+                    time.sleep(RETRY_PERIOD)
             else:
-                print('Вы не отправили работу')
-                logger.info('Работа не отправлена')
+                logger.debug('Работа не была отправлена на проверку')
                 time.sleep(RETRY_PERIOD)
-
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
-            logger.error(error)
+            logger.error(message)
             send_message(bot, message)
             time.sleep(RETRY_PERIOD)
 
