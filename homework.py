@@ -111,7 +111,7 @@ def main():
                     logger.debug('Нет обновлений')
                     time.sleep(RETRY_PERIOD)
             else:
-                logger.debug('Работа не была отправлена на проверку')
+                logger.debug('Работа была отправлена на проверку')
                 time.sleep(RETRY_PERIOD)
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
