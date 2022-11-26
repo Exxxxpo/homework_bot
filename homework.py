@@ -37,14 +37,14 @@ logger.addHandler(handler)
 
 
 def check_tokens():
-    """Проверка доступности переменных окружения"""
+    """Проверка доступности переменных окружения."""
     if not PRACTICUM_TOKEN or not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         logger.critical('Проверьте переменные окружения')
         sys.exit()
 
 
 def send_message(bot, message):
-    """Отправка сообщения пользователю"""
+    """Отправка сообщения пользователю."""
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logger.debug('Сообщение успешно отправлено!')
@@ -53,7 +53,7 @@ def send_message(bot, message):
 
 
 def get_api_answer(timestamp):
-    """Делаем запрос к эндпоинту API-сервиса"""
+    """Делаем запрос к эндпоинту API-сервиса."""
     try:
         response = requests.get(url=ENDPOINT, headers=HEADERS,
                                 params={'from_date': timestamp})
@@ -66,7 +66,7 @@ def get_api_answer(timestamp):
 
 
 def check_response(response):
-    """Проверка API на соответствие документации"""
+    """Проверка API на соответствие документации."""
     if type(response) != dict:
         logger.error('API возвращает не словарь')
         raise TypeError
@@ -79,7 +79,7 @@ def check_response(response):
 
 
 def parse_status(homework):
-    """Извлекает из информации о конкретной домашней работе статус работы"""
+    """Извлекает из информации о конкретной домашней работе статус работы."""
     try:
         homework_name = homework['homework_name']
         verdict = HOMEWORK_VERDICTS[homework['status']]
