@@ -22,11 +22,12 @@ HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 HOMEWORK_VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
     'reviewing': 'Работа взята на проверку ревьюером.',
-    'rejected': 'Работа проверена: у ревьюера есть замечания.'
+    'rejected': 'Работа проверена: у ревьюера есть замечания.',
 }
 
 formatter = logging.Formatter(
-    '%(asctime)s - %(levelname)s - %(message)s - %(name)s '
+    '%(asctime)s [%(levelname)s] | '
+    '(%(filename)s).%(funcName)s:%(lineno)d | %(message)s'
 )
 handler = RotatingFileHandler('homework.log', maxBytes=50000000, backupCount=5)
 handler.setFormatter(formatter)
@@ -34,32 +35,43 @@ handler.setFormatter(formatter)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logger.addHandler(handler)
+# logger = logging.getLogger(__name__)
+# logger.setLevel(logging.DEBUG)
+# handler = logging.StreamHandler(stream=sys.stdout)
+# logger.addHandler(handler)
+# formatter = logging.Formatter(
+#     '%(asctime)s - %(levelname)s - %(message)s'
+# )
+# handler.setFormatter(formatter)
 
 
 def check_tokens():
     """Проверка доступности переменных окружения."""
     if not PRACTICUM_TOKEN or not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         logger.critical('Проверьте переменные окружения')
-        sys.exit()
+        sys.exit(1)
 
 
 def send_message(bot, message):
     """Отправка сообщения пользователю."""
     try:
+        logger.debug('Подготовка к отправке сообщения')
         bot.send_message(TELEGRAM_CHAT_ID, message)
-        logger.debug('Сообщение успешно отправлено!')
     except Exception as error:
-        logger.error(error, 'Сообщение не удалось отправить!')
+        logger.error(error, exc_info=True)
+    else:
+        logger.debug('Сообщение успешно отправлено!')
 
 
 def get_api_answer(timestamp):
     """Делаем запрос к эндпоинту API-сервиса."""
     try:
-        response = requests.get(url=ENDPOINT, headers=HEADERS,
-                                params={'from_date': timestamp})
+        response = requests.get(
+            url=ENDPOINT, headers=HEADERS, params={'from_date': timestamp}
+        )
         if response.status_code != HTTPStatus.OK:
             logger.error('Ошибка подключения')
-            raise Exception
+            raise requests.exceptions.HTTPError
     except requests.RequestException as error:
         logger.error(error, 'Сбой при запросе к эндпоинту')
     return response.json()
@@ -67,15 +79,15 @@ def get_api_answer(timestamp):
 
 def check_response(response):
     """Проверка API на соответствие документации."""
-    if type(response) != dict:
+    if not isinstance(response, dict):
         logger.error('API возвращает не словарь')
-        raise TypeError
+        raise TypeError('API возвращает не словарь')
     if 'homeworks' not in response:
         logger.error('нет ключа "homeworks"')
-        raise KeyError
-    if type(response['homeworks']) != list:
+        raise KeyError('нет ключа "homeworks"')
+    if not isinstance(response['homeworks'], list):
         logger.error('response["homeworks"] возвращает не список')
-        raise TypeError
+        raise TypeError('response["homeworks"] возвращает не список')
 
 
 def parse_status(homework):
@@ -86,6 +98,7 @@ def parse_status(homework):
         logger.info('Информация успешно обработана')
     except KeyError:
         logger.error('Неожиданный статус домашней работы')
+        return f'У работы "{homework_name}". неизвестный статус {verdict}'
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
@@ -100,12 +113,15 @@ def main():
             response = get_api_answer(timestamp)
             check_response(response)
             if len(response.get('homeworks')) > 0:
-                if response.get('homeworks')[0].get(
-                        'date_updated') != last_date:
+                if (
+                    response.get('homeworks')[0].get('date_updated')
+                    != last_date
+                ):
                     message = parse_status(response.get('homeworks')[0])
                     send_message(bot, message)
                     last_date = response.get('homeworks')[0].get(
-                        'date_updated')
+                        'date_updated'
+                    )
                     time.sleep(RETRY_PERIOD)
                 else:
                     logger.debug('Нет обновлений')
