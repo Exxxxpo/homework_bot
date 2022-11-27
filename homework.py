@@ -127,6 +127,7 @@ def main():
                 send_message(bot, message)
                 last_message_except = message
         finally:
+            timestamp = response.get('current_date')
             time.sleep(RETRY_PERIOD)
             logger.debug('Таймер закончил работу')
 
