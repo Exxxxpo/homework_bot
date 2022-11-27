@@ -4,11 +4,12 @@ import sys
 import time
 from http import HTTPStatus
 from logging.handlers import RotatingFileHandler
-from exceptions import StatusCodeError
 
 import requests
 import telegram
 from dotenv import load_dotenv
+
+from exceptions import StatusCodeError
 
 load_dotenv()
 
@@ -104,28 +105,26 @@ def main():
     check_tokens()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
-    last_date = 0
-    last_message_except = ''
+    last_message = ''
     while True:
         try:
             response = get_api_answer(timestamp)
             check_response(response)
             if (
                 len(response.get('homeworks')) > 0
-                and response.get('homeworks')[0].get('date_updated')
-                != last_date
+                and parse_status(response.get('homeworks')[0]) != last_message
             ):
                 message = parse_status(response.get('homeworks')[0])
                 send_message(bot, message)
-                last_date = response.get('homeworks')[0].get('date_updated')
+                last_message = parse_status(response.get('homeworks')[0])
             else:
                 logger.debug('Нет обновлений')
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logger.error(message)
-            if message != last_message_except:
+            if message != last_message:
                 send_message(bot, message)
-                last_message_except = message
+                last_message = message
         finally:
             timestamp = response.get('current_date')
             time.sleep(RETRY_PERIOD)
