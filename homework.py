@@ -4,6 +4,7 @@ import sys
 import time
 from http import HTTPStatus
 from logging.handlers import RotatingFileHandler
+from exceptions import StatusCodeError
 
 import requests
 import telegram
@@ -35,14 +36,6 @@ handler.setFormatter(formatter)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logger.addHandler(handler)
-# logger = logging.getLogger(__name__)
-# logger.setLevel(logging.DEBUG)
-# handler = logging.StreamHandler(stream=sys.stdout)
-# logger.addHandler(handler)
-# formatter = logging.Formatter(
-#     '%(asctime)s - %(levelname)s - %(message)s'
-# )
-# handler.setFormatter(formatter)
 
 
 def check_tokens():
@@ -50,6 +43,7 @@ def check_tokens():
     if not PRACTICUM_TOKEN or not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         logger.critical('Проверьте переменные окружения')
         sys.exit(1)
+    logger.debug('Переменные окружения загружены')
 
 
 def send_message(bot, message):
@@ -66,14 +60,17 @@ def send_message(bot, message):
 def get_api_answer(timestamp):
     """Делаем запрос к эндпоинту API-сервиса."""
     try:
+        logger.debug('Делаем запрос к API')
         response = requests.get(
             url=ENDPOINT, headers=HEADERS, params={'from_date': timestamp}
         )
         if response.status_code != HTTPStatus.OK:
             logger.error('Ошибка подключения')
-            raise requests.exceptions.HTTPError
-    except requests.RequestException as error:
-        logger.error(error, 'Сбой при запросе к эндпоинту')
+            raise StatusCodeError(f'Статус сервера: {response.status_code}')
+    except requests.RequestException:
+        logger.error('Ошибка подключения к эндпоинту')
+    else:
+        logger.debug('Ответ от API успешно получен')
     return response.json()
 
 
@@ -108,32 +105,30 @@ def main():
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
     last_date = 0
+    last_message_except = ''
     while True:
         try:
             response = get_api_answer(timestamp)
             check_response(response)
-            if len(response.get('homeworks')) > 0:
-                if (
-                    response.get('homeworks')[0].get('date_updated')
-                    != last_date
-                ):
-                    message = parse_status(response.get('homeworks')[0])
-                    send_message(bot, message)
-                    last_date = response.get('homeworks')[0].get(
-                        'date_updated'
-                    )
-                    time.sleep(RETRY_PERIOD)
-                else:
-                    logger.debug('Нет обновлений')
-                    time.sleep(RETRY_PERIOD)
+            if (
+                len(response.get('homeworks')) > 0
+                and response.get('homeworks')[0].get('date_updated')
+                != last_date
+            ):
+                message = parse_status(response.get('homeworks')[0])
+                send_message(bot, message)
+                last_date = response.get('homeworks')[0].get('date_updated')
             else:
-                logger.debug('Работа была отправлена на проверку')
-                time.sleep(RETRY_PERIOD)
+                logger.debug('Нет обновлений')
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logger.error(message)
-            send_message(bot, message)
+            if message != last_message_except:
+                send_message(bot, message)
+                last_message_except = message
+        finally:
             time.sleep(RETRY_PERIOD)
+            logger.debug('Таймер закончил работу')
 
 
 if __name__ == '__main__':
