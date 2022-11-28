@@ -44,7 +44,7 @@ def check_tokens():
     if not PRACTICUM_TOKEN or not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         logger.critical('Проверьте переменные окружения')
         sys.exit(1)
-    logger.debug('Переменные окружения загружены')
+    logger.debug('Переменные окружения успешно загружены')
 
 
 def send_message(bot, message):
@@ -52,7 +52,7 @@ def send_message(bot, message):
     try:
         logger.debug('Подготовка к отправке сообщения')
         bot.send_message(TELEGRAM_CHAT_ID, message)
-    except Exception as error:
+    except telegram.error.TelegramError as error:
         logger.error(error, exc_info=True)
     else:
         logger.debug('Сообщение успешно отправлено!')
@@ -66,7 +66,7 @@ def get_api_answer(timestamp):
             url=ENDPOINT, headers=HEADERS, params={'from_date': timestamp}
         )
         if response.status_code != HTTPStatus.OK:
-            logger.error('Ошибка подключения')
+            logger.error(f'Ошибка подключения! Код - {response.status_code}')
             raise StatusCodeError(f'Статус сервера: {response.status_code}')
     except requests.RequestException:
         logger.error('Ошибка подключения к эндпоинту')
@@ -119,6 +119,8 @@ def main():
                 last_message = parse_status(response.get('homeworks')[0])
             else:
                 logger.debug('Нет обновлений')
+        except telegram.error.TelegramError as e:
+            logger.error(f'При отправлении сообщения возникла ошибка {e}')
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logger.error(message)
