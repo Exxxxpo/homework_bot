@@ -105,7 +105,7 @@ def main():
     check_tokens()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
-    last_message = ''
+    last_message = None
     while True:
         try:
             response = get_api_answer(timestamp)
